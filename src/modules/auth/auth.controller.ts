@@ -34,12 +34,17 @@ export async function googleAuth(req: Request, res: Response) {
 export async function googleAuthCallback(req: Request, res: Response) {
   const code = req.query.code as string
   const state = req.query.state as string
-  const storedState = req.cookies.oauth_state as string
+  const storedState = req.cookies.oauth_state
   // console.log('storedState from googleAuthCallback', storedState)
 
   // no code or state
   if (!code || !state) {
     throw new AuthError('Missing authorization code or state', 400)
+  }
+
+  // no stored state in cookie
+  if (!storedState) {
+    throw new AuthError('Missing stored OAuth state', 400)
   }
 
   // states didnt match
@@ -68,7 +73,7 @@ export async function googleAuthCallback(req: Request, res: Response) {
 // refresh tokens
 export async function refreshAccessToken(req: Request, res: Response) {
   // get the refresh token from cookie
-  const refreshToken = req.cookies.refreshToken as string
+  const refreshToken = req.cookies.refreshToken
 
   if (!refreshToken) {
     throw new AuthError('Refresh token not provided', 401)
@@ -87,7 +92,7 @@ export async function refreshAccessToken(req: Request, res: Response) {
 
 // log out
 export async function logOutUser(req: Request, res: Response) {
-  const refreshToken = req.cookies.refreshToken as string
+  const refreshToken = req.cookies.refreshToken
 
   // hash the token and delete cookie from db
   await handleLogOut(refreshToken)
