@@ -69,26 +69,26 @@ export async function handleGoogleAuthCallback(code: string): Promise<{
   // if user doesnt exist, first create user
   // then log in the user automatically. otherwise,
   // directly login the user -> generate tokens
-  // if (!user) {
-  //   const [newUser] = await db
-  //     .insert(users)
-  //     .values({ firstName, lastName, email })
-  //     .returning()
-
-  //   user = newUser
-  // }
-
-  try {
+  if (!user) {
     const [newUser] = await db
       .insert(users)
       .values({ firstName, lastName, email })
       .returning()
 
     user = newUser
-  } catch (err: any) {
-    console.error('DB ERROR:', err.message, err.detail)
-    throw err
   }
+
+  // try {
+  //   const [newUser] = await db
+  //     .insert(users)
+  //     .values({ firstName, lastName, email })
+  //     .returning()
+
+  //   user = newUser
+  // } catch (err: any) {
+  //   console.error('DB ERROR:', err.message, err.detail)
+  //   throw err
+  // }
 
   // generate tokens
   const accessToken = generateToken({ userId: user.id })
@@ -108,5 +108,45 @@ export async function handleGoogleAuthCallback(code: string): Promise<{
     accessToken,
     refreshToken,
     user: { name: user.firstName, email: user.email },
+  }
+}
+
+// generate new accesstokens every 15 mins
+export async function handleRefreshAccessToken(
+  refreshToken: string
+): Promise<{ accessToken: string }> {
+  // hash the token and find in db
+  const hashedRefreshToken = hashToken(refreshToken)
+
+  const [token] = await db
+    .select()
+    .from(refreshTokens)
+    .where(eq(refreshTokens.tokenHash, hashedRefreshToken))
+
+  // check if token exists
+  if (!token) {
+    throw new AuthError('Refresh Token does not exist', 403)
+  }
+
+  // check if token expired
+  if (token.expiresAt < new Date()) {
+    throw new AuthError('Refresh token expired')
+  }
+
+  // generate access token
+  const accessToken = generateToken({ userId: token.userId })
+
+  return { accessToken }
+}
+
+// handle log out
+export async function handleLogOut(refreshToken: any): Promise<void> {
+  if (refreshToken) {
+    const hashedRefreshToken = hashToken(refreshToken)
+
+    // delete from db
+    await db
+      .delete(refreshTokens)
+      .where(eq(refreshTokens.tokenHash, hashedRefreshToken))
   }
 }

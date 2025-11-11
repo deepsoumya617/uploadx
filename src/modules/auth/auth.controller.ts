@@ -3,6 +3,8 @@ import crypto from 'node:crypto'
 import {
   getGoogleAuthUrl,
   handleGoogleAuthCallback,
+  handleLogOut,
+  handleRefreshAccessToken,
 } from '@modules/auth/auth.service'
 import { AuthError } from '@errors/AuthError'
 import { successResponse } from '@utils/response'
@@ -56,9 +58,46 @@ export async function googleAuthCallback(req: Request, res: Response) {
   res.cookie('refreshToken', refreshToken, {
     httpOnly: true,
     secure: true,
-    sameSite: true,
+    sameSite: 'strict',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   })
 
   return successResponse(res, { accessToken, user }, 'Login successfull!')
+}
+
+// refresh tokens
+export async function refreshAccessToken(req: Request, res: Response) {
+  // get the refresh token from cookie
+  const refreshToken = req.cookies.refreshToken as string
+
+  if (!refreshToken) {
+    throw new AuthError('Refresh token not provided', 401)
+  }
+
+  // generate access token
+  const { accessToken } = await handleRefreshAccessToken(refreshToken)
+
+  return successResponse(
+    res,
+    { accessToken },
+    'Access token generated successfully!',
+    200
+  )
+}
+
+// log out
+export async function logOutUser(req: Request, res: Response) {
+  const refreshToken = req.cookies.refreshToken as string
+
+  // hash the token and delete cookie from db
+  await handleLogOut(refreshToken)
+
+  // clear from the browser
+  res.clearCookie('refreshToken', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'strict',
+  })
+
+  return successResponse(res, {}, 'Logged out sucessfully!', 200)
 }
