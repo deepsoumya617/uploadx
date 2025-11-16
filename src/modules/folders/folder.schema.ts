@@ -14,3 +14,17 @@ export const createFolderSchema = z.object({
 export const listFolderSchema = z.object({
   folderId: z.uuid('Invalid folderId format').nullable().optional(),
 })
+
+// rename folder schemas — validate params and body separately
+export const renameFolderParamsSchema = z.object({
+  folderId: z.uuid('Invalid folderId format'),
+})
+
+export const renameFolderBodySchema = z.object({
+  newName: z
+    .string()
+    .min(1, 'Folder name is required')
+    .max(255, 'Folder name is too long')
+    .trim(),
+})
+

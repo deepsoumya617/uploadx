@@ -3,11 +3,14 @@ import { Response } from 'express'
 import {
   createFolderSchema,
   listFolderSchema,
+  renameFolderBodySchema,
+  renameFolderParamsSchema,
 } from '@modules/folders/folder.schema'
 import { ValidationError } from '@errors/ValidationError'
 import {
   handleCreateFolder,
   handleListFolder,
+  handleRenameFolder,
 } from '@modules/folders/folder.service'
 import { successResponse } from '@utils/response'
 
@@ -50,4 +53,28 @@ export async function listFolder(req: AuthRequest, res: Response) {
     'Folders and files fetched successfully!',
     200
   )
+}
+
+
+// rename folder
+export async function renameFolder(req: AuthRequest, res: Response) {
+  const paramResult = renameFolderParamsSchema.safeParse(req.params)
+  const bodyResult = renameFolderBodySchema.safeParse(req.body)
+
+  if (!paramResult.success) {
+    throw new ValidationError()
+  }
+
+  if (!bodyResult.success) {
+    throw new ValidationError()
+  }
+
+  const { folderId } = paramResult.data
+  const { newName } = bodyResult.data
+  const userId = req.user!.userId
+
+  // rename the folder
+  await handleRenameFolder({ userId, folderId, newName })
+
+  return successResponse(res, {}, true, 'Folder renamed successfully', 200)
 }

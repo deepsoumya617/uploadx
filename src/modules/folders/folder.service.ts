@@ -6,6 +6,7 @@ import {
   fileType,
   folderType,
   listFolderType,
+  renameFolderType,
 } from '@modules/folders/folder.types'
 import { and, eq, isNull } from 'drizzle-orm'
 
@@ -80,4 +81,27 @@ export async function handleListFolder({ userId, folderId }: listFolderType) {
   }
 
   return { folders: subfolders, files: folderFiles }
+}
+
+// rename folder service
+export async function handleRenameFolder({
+  userId,
+  folderId,
+  newName,
+}: renameFolderType): Promise<void> {
+  // find the folderId first, i mean to see if it exists
+  const [folder] = await db
+    .select()
+    .from(folders)
+    .where(and(eq(folders.id, folderId), eq(folders.userId, userId)))
+
+  if (!folder) {
+    throw new NotFoundError('Folder not found in db')
+  }
+
+  // change the name
+  await db
+    .update(folders)
+    .set({ name: newName, updatedAt: new Date() })
+    .where(eq(folders.id, folder.id))
 }

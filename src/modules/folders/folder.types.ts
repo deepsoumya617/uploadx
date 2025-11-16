@@ -11,6 +11,13 @@ export type listFolderType = {
   folderId: string | null
 }
 
+// type for renaming a folder
+export type renameFolderType = {
+  userId: string
+  folderId: string
+  newName: string
+}
+
 // folder/subfolder type
 export type folderType = {
   id: string
