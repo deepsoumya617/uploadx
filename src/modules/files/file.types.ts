@@ -6,3 +6,10 @@ export type createUploadUrlType = {
   folderId: string | null
   userId: string
 }
+
+// type for confirming upload
+export type confirmFileUploadType = {
+  userId: string
+  fileId: string
+  size: number
+}

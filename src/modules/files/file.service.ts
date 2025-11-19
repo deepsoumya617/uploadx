@@ -1,14 +1,18 @@
 import { db } from '@config/db'
-import { createUploadUrlType } from './file.types'
+import {
+  confirmFileUploadType,
+  createUploadUrlType,
+} from '@modules/files/file.types'
 import { files, folders, users } from '@db/index'
 import { and, eq } from 'drizzle-orm'
 import { NotFoundError } from '@errors/NotFoundError'
 import { ForbiddenError } from '@errors/ForbiddenError'
 import { generateStorageKey } from '@utils/generateStorageKey'
-import { PutObjectCommand } from '@aws-sdk/client-s3'
+import { HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 import { env } from '@config/env'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { s3 } from '@config/s3'
+import { BadRequestError } from '@errors/BadRequestError'
 
 // create upload url and return to the controller
 export async function handleCreateUploadUrl({
@@ -76,4 +80,69 @@ export async function handleCreateUploadUrl({
   })
 
   return { uploadUrl, fileId, storageKey }
+}
+
+// now confirm the S3 obj exists in bucket and matches expected size
+// if so, then => 'COMPLETED' and update user.totalStorageUsed
+// else, 'FAILED' and throw error
+export async function handleConfirmFileUpload({
+  userId,
+  fileId,
+  size,
+}: confirmFileUploadType) {
+  // check if file exists
+  const [file] = await db
+    .select()
+    .from(files)
+    .where(and(eq(files.id, fileId), eq(files.userId, userId)))
+
+  if (!file) {
+    throw new NotFoundError('File not found in db')
+  }
+
+  const storageKey = file.storageKey
+
+  // call HeadObject on S3 to get actual uploaded size
+  let head
+  try {
+    head = await s3.send(
+      new HeadObjectCommand({
+        Bucket: env.AWS_S3_BUCKET,
+        Key: storageKey,
+      })
+    )
+  } catch (error) {
+    // object doesnt exist => fail
+    await db.update(files).set({ status: 'FAILED' }).where(eq(files.id, fileId))
+    throw new NotFoundError('File doesnt exist in S3')
+  }
+
+  // compare size now
+  const actualSize = head.ContentLength ?? 0
+
+  if (size !== actualSize) {
+    // size mismatch
+    await db.update(files).set({ status: 'FAILED' }).where(eq(files.id, fileId))
+    throw new BadRequestError('Uploaded file size mismatch')
+  }
+
+  // update the status in db
+  await db
+    .update(files)
+    .set({ status: 'COMPLETED', size: actualSize, updatedAt: new Date() })
+    .where(eq(files.id, fileId))
+
+  // update totalStorageUsed
+  const [user] = await db.select().from(users).where(eq(users.id, userId))
+
+  if (!user) {
+    throw new NotFoundError('User doesnt exist')
+  }
+
+  const newTotal = user.totalStorageUsed + actualSize
+
+  await db
+    .update(users)
+    .set({ totalStorageUsed: newTotal })
+    .where(eq(users.id, userId))
 }

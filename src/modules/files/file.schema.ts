@@ -11,3 +11,9 @@ export const uploadUrlSchema = z.object({
   size: z.number().min(1, 'Size must be > 0'),
   folderId: z.uuid().nullable().optional(),
 })
+
+// confirm upload schema
+export const confirmFileUploadSchema = z.object({
+  fileId: z.uuid('Invalid fileId format'),
+  size: z.number(),
+})
